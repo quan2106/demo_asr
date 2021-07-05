@@ -1,7 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.demo_asr">
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.INTERNET" />
    <application
+        android:usesCleartextTraffic="true"
         android:label="demo_asr"
         android:icon="@mipmap/ic_launcher">
         <activity
