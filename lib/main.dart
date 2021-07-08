@@ -1,11 +1,12 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:demo_asr/models/asr_response.dart';
 import 'package:demo_asr/vinchatbot_manager.dart';
 import 'package:flutter/material.dart';
+import 'package:holding_gesture/holding_gesture.dart';
 
-import 'package:flutter_sound/flutter_sound.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:sound_stream/sound_stream.dart';
 
 void main() {
   runApp(MyApp());
@@ -53,8 +54,7 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  FlutterSoundRecorder recorder = FlutterSoundRecorder();
-  var _recordingFoodController = StreamController<Food>();
+  final recorder = RecorderStream();
   VinChatBotManager _chatbotManager;
   bool _isRecording = false;
   bool _isForceStopRecording = false;
@@ -62,6 +62,8 @@ class _MyHomePageState extends State<MyHomePage> {
   AsrResponse asr;
   String text;
   bool isSocketConnect;
+  int blockSize = 8192;
+  Uint8List tempBuffer;
 
   @override
   void initState() {
@@ -84,14 +86,15 @@ class _MyHomePageState extends State<MyHomePage> {
     };
     _chatbotManager.initSocketChannel();
 
-    await recorder.closeAudioSession();
-    await recorder.openAudioSession();
-
-    _recordingFoodController.stream.listen((buffer) {
-      if (buffer is FoodData) {
-        _chatbotManager.addAudioData(buffer.data);
-      }
+    recorder.status.listen((status) {
+      setState(() {
+        _isRecording = status == SoundStreamStatus.Playing;
+      });
     });
+    recorder.audioStream.listen((buffer) {
+      _chatbotManager.addAudioData(buffer);
+    });
+    await recorder.initialize(showLogs: true);
   }
 
   Future _startRecorder() async {
@@ -99,44 +102,11 @@ class _MyHomePageState extends State<MyHomePage> {
       return;
     }
 
-    PermissionStatus status = await Permission.microphone.request();
-    if (status != PermissionStatus.granted) {
-      setState(() {
-        error = "Microphone permission not granted";
-      });
-      return;
-    }
-    await recorder.startRecorder(
-      codec: Codec.pcm16,
-      toStream: _recordingFoodController.sink,
-    );
-
-    setState(() {
-      _isRecording = true;
-    });
+    await recorder.start();
   }
 
   Future _pauseRecorder() async {
-    if (recorder.isRecording) {
-      await recorder.pauseRecorder();
-    }
-
-    setState(() {
-      _isRecording = false;
-    });
-  }
-
-  Future _resumeRecorder() async {
-    if (_isForceStopRecording) {
-      return;
-    }
-    if (recorder.isPaused) {
-      await recorder.resumeRecorder();
-    }
-
-    setState(() {
-      _isRecording = true;
-    });
+    await recorder.stop();
   }
 
   @override
@@ -170,19 +140,14 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
       ),
       floatingActionButton: GestureDetector(
-        onTapUp: (_) async {
-          print("stop_recoder");
-          await _pauseRecorder();
-        },
         onTapDown: (_) async {
-          print("start_recoder");
-          if (recorder.isPaused) {
-            await _resumeRecorder();
-          }
-
-          if (recorder.isStopped) {
-            await _startRecorder();
-          }
+          await _startRecorder();
+        },
+        onTapUp: (_) {
+          _pauseRecorder();
+        },
+        onTapCancel: () {
+          _pauseRecorder();
         },
         child: FloatingActionButton(
           child: Icon((!_isRecording) ? Icons.mic : Icons.mic_off),
