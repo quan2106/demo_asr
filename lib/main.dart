@@ -92,7 +92,9 @@ class _MyHomePageState extends State<MyHomePage> {
       });
     });
     recorder.audioStream.listen((buffer) {
-      _chatbotManager.addAudioData(buffer);
+      if (_isRecording) {
+        _chatbotManager.addAudioData(buffer);
+      }
     });
     await recorder.initialize(showLogs: true);
   }
